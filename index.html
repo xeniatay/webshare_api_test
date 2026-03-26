@@ -140,14 +140,16 @@
     footer {
       padding: 16px 20px;
       padding-bottom: max(16px, env(safe-area-inset-bottom));
+      display: grid;
+      gap: 10px;
     }
 
-    .share-btn {
+    .share-btn,
+    .share-all-btn {
       width: 100%;
       padding: 16px;
       border: none;
       border-radius: 14px;
-      background: #4f8cff;
       color: #fff;
       font-size: 1rem;
       font-weight: 600;
@@ -160,6 +162,18 @@
       gap: 8px;
     }
 
+    .share-btn {
+      background: #4f8cff;
+    }
+
+    .share-all-btn {
+      background: #9333ea;
+    }
+
+    .share-first-btn {
+      background: #16a34a;
+    }
+
     .share-btn:disabled {
       background: #2a2a2a;
       color: #555;
@@ -170,11 +184,23 @@
       background: #3d7ae8;
     }
 
-    .share-btn:not(:disabled):active {
+    .share-all-btn:hover {
+      background: #7e22ce;
+    }
+
+    .share-first-btn:hover {
+      background: #15803d;
+    }
+
+    .share-btn:not(:disabled):active,
+    .share-all-btn:active,
+    .share-first-btn:active {
       transform: scale(0.98);
     }
 
-    .share-btn svg {
+    .share-btn svg,
+    .share-all-btn svg,
+    .share-first-btn svg {
       width: 20px;
       height: 20px;
     }
@@ -235,6 +261,18 @@
   </main>
 
   <footer>
+    <button class="share-all-btn" onclick="shareAll()">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 0 0-2.25 2.25v9a2.25 2.25 0 0 0 2.25 2.25h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25H15m0-3-3-3m0 0-3 3m3-3V15" />
+      </svg>
+      <span>Share All (${IMAGES.length})</span>
+    </button>
+    <button class="share-first-btn" onclick="shareFirst()">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 0 0-2.25 2.25v9a2.25 2.25 0 0 0 2.25 2.25h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25H15m0-3-3-3m0 0-3 3m3-3V15" />
+      </svg>
+      <span>Share First Image</span>
+    </button>
     <button class="share-btn" id="shareBtn" disabled onclick="shareImages()">
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 0 0-2.25 2.25v9a2.25 2.25 0 0 0 2.25 2.25h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25H15m0-3-3-3m0 0-3 3m3-3V15" />
@@ -365,6 +403,83 @@
         } else {
           showToast(`❌ ${err.message}`);
           console.error('Share failed:', err);
+        }
+      }
+    }
+
+    async function shareFirst() {
+      if (!navigator.canShare) {
+        showToast('❌ Web Share API not supported on this browser');
+        return;
+      }
+
+      showToast('⏳ Fetching first image...');
+
+      try {
+        const img = IMAGES[0];
+        const response = await fetch(img.url);
+        const blob = await response.blob();
+        const file = new File([blob], `${img.label.toLowerCase()}.jpg`, { type: 'image/jpeg' });
+
+        const shareData = {
+          title: img.label,
+          text: `Check out this image!`,
+          files: [file],
+        };
+
+        if (!navigator.canShare(shareData)) {
+          showToast('❌ Cannot share this file on this device');
+          return;
+        }
+
+        await navigator.share(shareData);
+        showToast('✅ Shared successfully!');
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          showToast('Share cancelled');
+        } else {
+          showToast(`❌ ${err.message}`);
+          console.error('Share first failed:', err);
+        }
+      }
+    }
+
+    async function shareAll() {
+      if (!navigator.canShare) {
+        showToast('❌ Web Share API not supported on this browser');
+        return;
+      }
+
+      showToast('⏳ Fetching all images...');
+
+      try {
+        const files = await Promise.all(
+          IMAGES.map(async (img) => {
+            const response = await fetch(img.url);
+            const blob = await response.blob();
+            return new File([blob], `${img.label.toLowerCase()}.jpg`, { type: 'image/jpeg' });
+          })
+        );
+
+        const shareData = {
+          title: 'All Images',
+          text: `Check out all ${files.length} images!`,
+          files: files,
+        };
+
+        if (!navigator.canShare(shareData)) {
+          showToast('❌ Cannot share these files on this device');
+          return;
+        }
+
+        await navigator.share(shareData);
+        showToast('✅ Shared successfully!');
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          showToast('Share cancelled');
+        } else {
+          showToast(`❌ ${err.message}`);
+          console.error('Share all failed:', err);
         }
       }
     }
