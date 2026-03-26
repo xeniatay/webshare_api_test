@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Web Share API Test</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f0f0f;
+      color: #e0e0e0;
+      min-height: 100dvh;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+    }
+
+    header {
+      padding: 24px 20px 16px;
+      text-align: center;
+    }
+
+    header h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    header p {
+      font-size: 0.85rem;
+      color: #888;
+      margin-top: 6px;
+    }
+
+    main {
+      padding: 0 20px 20px;
+      overflow-y: auto;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+      position: sticky;
+      top: 0;
+      background: #0f0f0f;
+      padding: 8px 0;
+      z-index: 10;
+    }
+
+    .selection-count {
+      font-size: 0.85rem;
+      color: #aaa;
+    }
+
+    .select-all-btn {
+      background: none;
+      border: 1px solid #444;
+      color: #ccc;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .select-all-btn:hover {
+      border-color: #888;
+      color: #fff;
+    }
+
+    .image-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 10px;
+    }
+
+    .image-card {
+      position: relative;
+      aspect-ratio: 1;
+      border-radius: 12px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .image-card:hover {
+      transform: scale(1.02);
+    }
+
+    .image-card.selected {
+      box-shadow: 0 0 0 3px #4f8cff;
+    }
+
+    .image-card img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .image-card .check {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.6);
+      background: rgba(0,0,0,0.3);
+      display: grid;
+      place-items: center;
+      transition: all 0.15s;
+      backdrop-filter: blur(4px);
+    }
+
+    .image-card .check svg {
+      width: 14px;
+      height: 14px;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+
+    .image-card.selected .check {
+      background: #4f8cff;
+      border-color: #4f8cff;
+    }
+
+    .image-card.selected .check svg {
+      opacity: 1;
+    }
+
+    footer {
+      padding: 16px 20px;
+      padding-bottom: max(16px, env(safe-area-inset-bottom));
+    }
+
+    .share-btn {
+      width: 100%;
+      padding: 16px;
+      border: none;
+      border-radius: 14px;
+      background: #4f8cff;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: grid;
+      grid-template-columns: auto auto;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .share-btn:disabled {
+      background: #2a2a2a;
+      color: #555;
+      cursor: not-allowed;
+    }
+
+    .share-btn:not(:disabled):hover {
+      background: #3d7ae8;
+    }
+
+    .share-btn:not(:disabled):active {
+      transform: scale(0.98);
+    }
+
+    .share-btn svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 100px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #333;
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      opacity: 0;
+      transition: all 0.3s;
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .no-support {
+      text-align: center;
+      padding: 40px 20px;
+      color: #f44;
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+
+    @media (min-width: 600px) {
+      .image-grid {
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      }
+
+      footer {
+        max-width: 400px;
+        margin: 0 auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>📸 Share Images</h1>
+    <p>Select images and tap share</p>
+  </header>
+
+  <main>
+    <div class="toolbar">
+      <span class="selection-count">0 selected</span>
+      <button class="select-all-btn" onclick="toggleSelectAll()">Select all</button>
+    </div>
+    <div class="image-grid" id="imageGrid"></div>
+  </main>
+
+  <footer>
+    <button class="share-btn" id="shareBtn" disabled onclick="shareImages()">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 0 0-2.25 2.25v9a2.25 2.25 0 0 0 2.25 2.25h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25H15m0-3-3-3m0 0-3 3m3-3V15" />
+      </svg>
+      <span>Share</span>
+    </button>
+  </footer>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // Sample images from picsum.photos (free, no CORS issues for fetching)
+    const IMAGES = [
+      { id: 1, url: 'https://picsum.photos/id/10/400/400', label: 'Forest' },
+      { id: 2, url: 'https://picsum.photos/id/15/400/400', label: 'Laptop' },
+      { id: 3, url: 'https://picsum.photos/id/20/400/400', label: 'Desk' },
+      { id: 4, url: 'https://picsum.photos/id/25/400/400', label: 'Dog' },
+      { id: 5, url: 'https://picsum.photos/id/30/400/400', label: 'Berries' },
+      { id: 6, url: 'https://picsum.photos/id/37/400/400', label: 'Coastline' },
+      { id: 7, url: 'https://picsum.photos/id/42/400/400', label: 'Camera' },
+      { id: 8, url: 'https://picsum.photos/id/49/400/400', label: 'Mountains' },
+      { id: 9, url: 'https://picsum.photos/id/56/400/400', label: 'Lighthouse' },
+      { id: 10, url: 'https://picsum.photos/id/65/400/400', label: 'Leaves' },
+      { id: 11, url: 'https://picsum.photos/id/76/400/400', label: 'Bears' },
+      { id: 12, url: 'https://picsum.photos/id/84/400/400', label: 'Sunset' },
+    ];
+
+    const selected = new Set();
+    const grid = document.getElementById('imageGrid');
+    const shareBtn = document.getElementById('shareBtn');
+    const countEl = document.querySelector('.selection-count');
+    const selectAllBtn = document.querySelector('.select-all-btn');
+
+    // Render image cards
+    function renderGrid() {
+      grid.innerHTML = IMAGES.map(img => `
+        <div class="image-card ${selected.has(img.id) ? 'selected' : ''}"
+             onclick="toggleImage(${img.id})"
+             data-id="${img.id}">
+          <img src="${img.url}" alt="${img.label}" loading="lazy">
+          <div class="check">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                 stroke-width="3" stroke="#fff">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+            </svg>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function toggleImage(id) {
+      if (selected.has(id)) {
+        selected.delete(id);
+      } else {
+        selected.add(id);
+      }
+      updateUI();
+    }
+
+    function toggleSelectAll() {
+      if (selected.size === IMAGES.length) {
+        selected.clear();
+      } else {
+        IMAGES.forEach(img => selected.add(img.id));
+      }
+      updateUI();
+    }
+
+    function updateUI() {
+      // Update cards
+      document.querySelectorAll('.image-card').forEach(card => {
+        const id = parseInt(card.dataset.id);
+        card.classList.toggle('selected', selected.has(id));
+      });
+
+      // Update count
+      const count = selected.size;
+      countEl.textContent = `${count} selected`;
+
+      // Update share button
+      shareBtn.disabled = count === 0;
+      shareBtn.querySelector('span').textContent =
+        count === 0 ? 'Share' : `Share ${count} image${count > 1 ? 's' : ''}`;
+
+      // Update select all button
+      selectAllBtn.textContent =
+        selected.size === IMAGES.length ? 'Deselect all' : 'Select all';
+    }
+
+    async function shareImages() {
+      if (selected.size === 0) return;
+
+      // Check for Web Share API with files support
+      if (!navigator.canShare) {
+        showToast('❌ Web Share API not supported on this browser');
+        return;
+      }
+
+      showToast('⏳ Fetching images...');
+
+      try {
+        // Fetch all selected images as blobs and convert to Files
+        const selectedImages = IMAGES.filter(img => selected.has(img.id));
+        const files = await Promise.all(
+          selectedImages.map(async (img, i) => {
+            const response = await fetch(img.url);
+            const blob = await response.blob();
+            return new File([blob], `${img.label.toLowerCase()}.jpg`, { type: 'image/jpeg' });
+          })
+        );
+
+        const shareData = {
+          title: 'Shared Images',
+          text: `Check out ${files.length} image${files.length > 1 ? 's' : ''}!`,
+          files: files,
+        };
+
+        if (!navigator.canShare(shareData)) {
+          showToast('❌ Cannot share these files on this device');
+          return;
+        }
+
+        await navigator.share(shareData);
+        showToast('✅ Shared successfully!');
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          showToast('Share cancelled');
+        } else {
+          showToast(`❌ ${err.message}`);
+          console.error('Share failed:', err);
+        }
+      }
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.classList.add('show');
+      clearTimeout(toast._timeout);
+      toast._timeout = setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    // Init
+    renderGrid();
+
+    // Check support on load
+    if (!navigator.share) {
+      document.querySelector('main').innerHTML =
+        '<div class="no-support">⚠️ Web Share API is not supported in this browser.<br>Try opening this page on a mobile device or in Chrome/Safari.</div>';
+      shareBtn.disabled = true;
+    }
+  </script>
+</body>
+</html>
